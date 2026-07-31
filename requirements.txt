@@ -1,0 +1,6 @@
+﻿pydantic>=2.0
+pydantic-settings>=2.0
+pyyaml
+requests
+jinja2
+pytest

@@ -1,0 +1,25 @@
+﻿# --- Hassas veri: ASLA repoya girmez ---
+data/scans/
+data/reports/
+data/logs/
+data/scope/*.yaml
+!data/scope/*.example.yaml
+.env
+*.log
+
+# --- Python ---
+__pycache__/
+*.pyc
+.venv/
+venv/
+*.egg-info/
+.pytest_cache/
+
+# --- Editor / OS ---
+.vscode/
+.idea/
+.DS_Store
+
+# --- Ollama/model dosyalari ---
+*.gguf
+models/

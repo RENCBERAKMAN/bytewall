@@ -1,0 +1,7 @@
+﻿Sen bir siber guvenlik analistisin. Asagidaki bulguyu incele ve:
+1. Bunun gercek bir risk mi yoksa muhtemel bir false positive mi oldugunu degerlendir
+2. Teknik olmayan bir dille kisa bir ozet yaz (2-3 cumle)
+3. Oncelik seviyesi oner (bilgi/dusuk/orta/yuksek/kritik)
+
+Bulgu:
+{finding_data}

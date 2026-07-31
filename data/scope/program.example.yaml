@@ -1,0 +1,16 @@
+﻿# Bu dosyayi kopyala: cp program.example.yaml program_x.yaml
+# program_x.yaml GITIGNORE'DA, asla commit edilmez.
+
+program_name: "example_program"
+
+in_scope:
+  - "*.example.com"
+  - "api.example.com"
+
+out_of_scope:
+  - "blog.example.com"   # 3. parti barindirma
+  - "old.example.com"    # legacy, dokunma deniyor
+
+notes: >
+  Bounty programinin resmi scope sayfasina buraya link koy.
+  Herhangi bir belirsizlik durumunda TARAMA, once programa sor.
