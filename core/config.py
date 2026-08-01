@@ -1,9 +1,4 @@
-﻿"""
-Merkezi konfigurasyon. Tum ayarlar buradan okunur, hicbir yerde
-hardcoded key/secret olmamali.
-"""
-from pydantic_settings import BaseSettings
-
+﻿from pydantic_settings import BaseSettings
 
 class Settings(BaseSettings):
     ollama_host: str = "http://localhost:11434"
@@ -13,6 +8,5 @@ class Settings(BaseSettings):
 
     class Config:
         env_file = ".env"
-
 
 settings = Settings()
