@@ -49,6 +49,25 @@ Before any real scan, always run with `--dry-run` first — it shows exactly whi
 
 ---
 
+## What ByteWall does — and doesn't do
+
+Being upfront about this matters, especially for an open-source security tool.
+
+**What it does:**
+- **Discovery** (Nmap): finds open ports and identifies the running service + version on each.
+- **Known-vulnerability detection** (Nuclei): checks findings against thousands of community templates covering known CVEs, exposed panels, misconfigurations, and information disclosure.
+- **Triage** (local AI): reviews each finding, writes a plain-language summary, and flags likely false positives — without changing the underlying severity score.
+- **Reporting**: consolidates everything into a single, readable HTML report.
+
+**What it does NOT do:**
+- **No active exploitation.** It flags that a vulnerability *might* exist based on version/signature matching — it does not attempt to exploit anything or generate proof-of-concept payloads.
+- **No subdomain/asset discovery.** You provide the exact targets; ByteWall doesn't go find new subdomains or assets on its own (yet — see Contributing).
+- **No business-logic testing.** Things like broken access control, auth bypass, or logic flaws generally require human judgment and aren't something signature-based tools can catch.
+
+In short: ByteWall speeds up the repetitive discovery-and-triage work. The judgment calls and manual testing that follow are still on you.
+
+---
+
 ## Architecture
 
 ```
