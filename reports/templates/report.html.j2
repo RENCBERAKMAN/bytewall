@@ -1,8 +1,185 @@
-﻿<!-- TODO: Jinja2 HTML rapor sablonu -->
-<!DOCTYPE html>
-<html lang="tr">
-<head><meta charset="UTF-8"><title>ByteWall Raporu</title></head>
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>ByteWall Report — {{ program_name }}</title>
+<style>
+  :root {
+    --bg: #0d1117;
+    --panel: #161b22;
+    --border: #30363d;
+    --text: #e6edf3;
+    --text-dim: #8b949e;
+    --critical: #ff4d4f;
+    --high: #ff8c42;
+    --medium: #ffd43b;
+    --low: #4dabf7;
+    --info: #6b7280;
+  }
+  * { box-sizing: border-box; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, "Segoe UI", Roboto, sans-serif;
+    margin: 0;
+    padding: 2rem;
+    line-height: 1.5;
+  }
+  .container { max-width: 900px; margin: 0 auto; }
+  h1 { font-size: 1.6rem; margin-bottom: 0.25rem; }
+  .meta { color: var(--text-dim); font-size: 0.9rem; margin-bottom: 2rem; }
+
+  .summary {
+    display: flex;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+    margin-bottom: 2rem;
+  }
+  .summary-card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 0.75rem 1.1rem;
+    min-width: 90px;
+  }
+  .summary-card .count { font-size: 1.4rem; font-weight: 700; }
+  .summary-card .label { font-size: 0.75rem; color: var(--text-dim); text-transform: uppercase; }
+
+  .targets-box {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 1rem 1.25rem;
+    margin-bottom: 2rem;
+    font-size: 0.9rem;
+  }
+  .targets-box h3 { margin: 0 0 0.5rem 0; font-size: 0.9rem; color: var(--text-dim); text-transform: uppercase; }
+  .targets-box ul { margin: 0; padding-left: 1.2rem; }
+  .rejected-reason { color: var(--text-dim); font-size: 0.85rem; }
+
+  .finding {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-left: 4px solid var(--info);
+    border-radius: 8px;
+    padding: 1rem 1.25rem;
+    margin-bottom: 1rem;
+  }
+  .finding.critical { border-left-color: var(--critical); }
+  .finding.high { border-left-color: var(--high); }
+  .finding.medium { border-left-color: var(--medium); }
+  .finding.low { border-left-color: var(--low); }
+  .finding.info { border-left-color: var(--info); }
+
+  .finding-header { display: flex; align-items: center; gap: 0.6rem; margin-bottom: 0.4rem; flex-wrap: wrap; }
+  .badge {
+    font-size: 0.7rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    padding: 0.15rem 0.5rem;
+    border-radius: 4px;
+    color: #0d1117;
+  }
+  .badge.critical { background: var(--critical); }
+  .badge.high { background: var(--high); }
+  .badge.medium { background: var(--medium); }
+  .badge.low { background: var(--low); color: white; }
+  .badge.info { background: var(--info); color: white; }
+
+  .tool-tag {
+    font-size: 0.7rem;
+    color: var(--text-dim);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 0.1rem 0.4rem;
+  }
+  .fp-tag {
+    font-size: 0.7rem;
+    color: #ffd43b;
+    border: 1px solid #665c1e;
+    border-radius: 4px;
+    padding: 0.1rem 0.4rem;
+  }
+
+  .finding-title { font-weight: 600; font-size: 1rem; }
+  .finding-desc { color: var(--text-dim); font-size: 0.9rem; margin-top: 0.3rem; }
+  .finding-meta { font-size: 0.8rem; color: var(--text-dim); margin-top: 0.5rem; }
+  .finding-meta code { background: #0d1117; padding: 0.1rem 0.35rem; border-radius: 4px; }
+
+  .ai-summary {
+    margin-top: 0.6rem;
+    padding: 0.6rem 0.8rem;
+    background: #0d1117;
+    border-left: 3px solid #58a6ff;
+    border-radius: 4px;
+    font-size: 0.88rem;
+  }
+  .ai-summary .ai-label { color: #58a6ff; font-weight: 600; font-size: 0.75rem; text-transform: uppercase; margin-bottom: 0.2rem; }
+
+  .empty-state { text-align: center; color: var(--text-dim); padding: 3rem 0; }
+</style>
+</head>
 <body>
-  <h1>ByteWall Tarama Raporu</h1>
+<div class="container">
+
+  <h1>ByteWall Scan Report</h1>
+  <div class="meta">Program: {{ program_name }} &nbsp;•&nbsp; Generated: {{ generated_at }}</div>
+
+  <div class="summary">
+    {% for sev in ["critical", "high", "medium", "low", "info"] %}
+    <div class="summary-card">
+      <div class="count" style="color: var(--{{ sev }});">{{ severity_counts.get(sev, 0) }}</div>
+      <div class="label">{{ sev }}</div>
+    </div>
+    {% endfor %}
+  </div>
+
+  {% if scanned_targets or rejected_targets %}
+  <div class="targets-box">
+    {% if scanned_targets %}
+    <h3>Scanned Targets ({{ scanned_targets|length }})</h3>
+    <ul>
+      {% for t in scanned_targets %}<li>{{ t }}</li>{% endfor %}
+    </ul>
+    {% endif %}
+    {% if rejected_targets %}
+    <h3 style="margin-top: 0.75rem;">Out-of-Scope Targets ({{ rejected_targets|length }})</h3>
+    <ul>
+      {% for r in rejected_targets %}
+      <li>{{ r.target }} <span class="rejected-reason">— {{ r.reason }}</span></li>
+      {% endfor %}
+    </ul>
+    {% endif %}
+  </div>
+  {% endif %}
+
+  {% if findings %}
+    {% for f in findings %}
+    <div class="finding {{ f.severity.value }}">
+      <div class="finding-header">
+        <span class="badge {{ f.severity.value }}">{{ f.severity.value }}</span>
+        <span class="tool-tag">{{ f.source_tool }}</span>
+        {% if f.false_positive %}<span class="fp-tag">possible false positive</span>{% endif %}
+        {% if f.cve_id %}<span class="tool-tag">{{ f.cve_id }}</span>{% endif %}
+      </div>
+      <div class="finding-title">{{ f.title }}</div>
+      {% if f.description %}<div class="finding-desc">{{ f.description }}</div>{% endif %}
+      <div class="finding-meta">
+        {% if f.affected_url %}Target: <code>{{ f.affected_url }}</code>{% endif %}
+        {% if f.cvss_score %} &nbsp;•&nbsp; CVSS: <code>{{ f.cvss_score }}</code>{% endif %}
+      </div>
+      {% if f.ai_summary %}
+      <div class="ai-summary">
+        <div class="ai-label">AI Assessment</div>
+        {{ f.ai_summary }}
+      </div>
+      {% endif %}
+    </div>
+    {% endfor %}
+  {% else %}
+    <div class="empty-state">No findings were detected in this scan.</div>
+  {% endif %}
+
+</div>
 </body>
 </html>

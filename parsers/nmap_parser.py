@@ -87,10 +87,10 @@ def parse_nmap_output(raw_xml: str, target: str) -> list[Finding]:
 
             # Başlık ve açıklamayı okunabilir şekilde oluştur
             service_desc = f"{product} {version}".strip() or service_name
-            title = f"Açık port: {port_id}/{protocol} ({service_name})"
+            title = f"Open port: {port_id}/{protocol} ({service_name})"
             description = (
-                f"{resolved_ip} üzerinde {port_id}/{protocol} portu açık, "
-                f"çalışan servis: {service_desc}."
+                f"Port {port_id}/{protocol} is open on {resolved_ip}, "
+                f"running service: {service_desc}."
             )
 
             findings.append(

@@ -58,10 +58,12 @@ targets
    -> modules/*Runner.run()             # Nmap, Nuclei (subprocess, no shell=True)
    -> parsers/*_parser.py               # raw tool output -> common Finding schema
    -> ai/analyzer.py                    # local LLM triage + summarization (Ollama)
-   -> reports/*_builder.py              # HTML / Markdown report
+   -> reports/html_builder.py           # HTML report
 ```
 
 Every scanning module implements a shared `BaseRunner` interface (`modules/base_runner.py`), so adding a new tool doesn't require touching the orchestrator. Every parser converts tool-specific output into one common `Finding` model (`parsers/schema.py`), so the AI and reporting layers never need to know which tool a result came from. All subprocess calls use argument lists (never `shell=True`), which eliminates shell-injection risk regardless of what a target string contains.
+
+The AI layer never overrides a tool's severity rating — it only adds a plain-language summary and flags likely false positives. Prioritization sorts by severity first, then pushes flagged false positives toward the bottom, without ever deleting a finding.
 
 ---
 
@@ -75,7 +77,8 @@ Every scanning module implements a shared `BaseRunner` interface (`modules/base_
 | AI / LLM | Ollama (local, e.g. Llama 3) — nothing leaves the machine |
 | Recon | Nmap |
 | Vulnerability scanning | Nuclei (community templates) |
-| Testing | pytest (mocked subprocess calls, no live network required) |
+| Reporting | Jinja2 (HTML report generation) |
+| Testing | pytest (mocked subprocess/HTTP calls, no live network required) |
 
 ---
 
@@ -83,20 +86,26 @@ Every scanning module implements a shared `BaseRunner` interface (`modules/base_
 
 ```
 bytewall/
-├── core/                 # orchestrator, config, scope manager
+├── core/                     # orchestrator, config, scope manager
 ├── modules/
-│   ├── base_runner.py    # shared interface every tool runner implements
+│   ├── base_runner.py        # shared interface every tool runner implements
 │   ├── recon/
 │   │   └── nmap_runner.py
 │   └── webscan/
 │       └── nuclei_runner.py
-├── parsers/               # raw tool output -> common Finding schema
-├── ai/                    # local LLM client + analysis/prioritization
-├── reports/                # HTML/Markdown report generation
+├── parsers/                   # raw tool output -> common Finding schema
+├── ai/
+│   ├── ollama_client.py       # local LLM HTTP client
+│   ├── analyzer.py            # summarization, false-positive triage, priority sort
+│   └── prompts/
+├── reports/
+│   ├── html_builder.py
+│   └── templates/
 ├── data/
-│   └── scope/               # your scope files live here (gitignored except the example)
+│   ├── scope/                 # your scope files live here (gitignored except the example)
+│   └── reports/                # generated reports land here (gitignored)
 ├── tests/
-│   └── unit/                 # 50+ tests, all run against mocked subprocess calls
+│   └── unit/                   # 80+ tests, all run against mocked subprocess/HTTP calls
 └── docs/
 ```
 
@@ -135,9 +144,25 @@ cp data/scope/program.example.yaml data/scope/my_program.yaml
 # always dry-run first — verify exactly what would be scanned
 python main.py --program my_program --target api.example.com --dry-run
 
-# real scan
+# scan with both tools, print results to the terminal
 python main.py --program my_program --target api.example.com --tools nmap,nuclei
+
+# full pipeline: scan + local AI triage + HTML report
+python main.py --program my_program --target api.example.com --ai --report data/reports/scan.html
 ```
+
+**Flags:**
+
+| Flag | Description |
+|---|---|
+| `--program` | Name of the YAML file under `data/scope/` (without extension) |
+| `--target` | Target to scan; repeat the flag for multiple targets |
+| `--tools` | Comma-separated list of tools to run (default: `nmap,nuclei`) |
+| `--nmap-profile` | `quick` / `standard` / `aggressive` |
+| `--nuclei-profile` | `quick` / `standard` / `aggressive` (maps to severity filters) |
+| `--dry-run` | Show what would be scanned without running anything |
+| `--ai` | Run findings through the local Ollama model for summary + false-positive triage |
+| `--report PATH` | Write results to an HTML report at the given path |
 
 ### Tests
 
@@ -145,13 +170,13 @@ python main.py --program my_program --target api.example.com --tools nmap,nuclei
 pytest tests/unit -v
 ```
 
-All tests run against mocked subprocess calls — no live network access or installed tools required to run the test suite.
+All tests run against mocked subprocess/HTTP calls — no live network access or installed tools required to run the test suite.
 
 ---
 
 ## Contributing
 
-Issues and PRs are welcome — bug fixes, new tool runners (following the `BaseRunner` interface), parser improvements, better prompts for the AI layer, whatever. If you're adding a new scanning module, please keep the scope-safety guarantee intact: nothing should ever reach a runner without going through `ScopeManager` first.
+Issues and PRs are welcome — bug fixes, new tool runners (following the `BaseRunner` interface), parser improvements, better prompts for the AI layer, a Markdown report option, whatever. If you're adding a new scanning module, please keep the scope-safety guarantee intact: nothing should ever reach a runner without going through `ScopeManager` first, and please add tests alongside any new logic.
 
 ---
 
