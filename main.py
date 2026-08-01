@@ -6,7 +6,8 @@ Komut satırı giriş noktası.
 Kullanım:
   python main.py --program my_program --target 127.0.0.1 --dry-run
   python main.py --program my_program --target 127.0.0.1
-  python main.py --program my_program --target 127.0.0.1 --target api.example.com
+  python main.py --program my_program --target 127.0.0.1 --tools nmap
+  python main.py --program my_program --target 127.0.0.1 --tools nmap,nuclei
 """
 
 from __future__ import annotations
@@ -35,10 +36,21 @@ def build_arg_parser() -> argparse.ArgumentParser:
         help="Taranacak hedef. Birden fazla hedef için --target'ı tekrar kullan.",
     )
     parser.add_argument(
-        "--profile",
+        "--tools",
+        default="nmap,nuclei",
+        help="Çalıştırılacak araçlar, virgülle ayrılmış: nmap,nuclei (varsayılan: ikisi de)",
+    )
+    parser.add_argument(
+        "--nmap-profile",
         default="quick",
         choices=["quick", "standard", "aggressive"],
         help="Nmap tarama profili (varsayılan: quick)",
+    )
+    parser.add_argument(
+        "--nuclei-profile",
+        default="quick",
+        choices=["quick", "standard", "aggressive"],
+        help="Nuclei severity profili (varsayılan: quick)",
     )
     parser.add_argument(
         "--dry-run",
@@ -52,9 +64,15 @@ def main() -> int:
     args = build_arg_parser().parse_args()
 
     program_file = Path("data/scope") / f"{args.program}.yaml"
+    tools = [t.strip() for t in args.tools.split(",") if t.strip()]
 
     try:
-        orchestrator = Orchestrator(str(program_file), nmap_profile=args.profile)
+        orchestrator = Orchestrator(
+            str(program_file),
+            nmap_profile=args.nmap_profile,
+            nuclei_profile=args.nuclei_profile,
+            tools=tools,
+        )
     except (ScopeFileError, ScopeValidationError) as e:
         print(f"HATA: Scope dosyası yüklenemedi: {e}", file=sys.stderr)
         return 1
@@ -62,6 +80,7 @@ def main() -> int:
     result = orchestrator.run(args.target, dry_run=args.dry_run)
 
     print()
+    print(f"Kullanılan araçlar: {tools}")
     print(f"Taranan hedefler: {result.scanned_targets}")
     print(f"Reddedilen hedefler: {len(result.rejected_targets)}")
     for rejected in result.rejected_targets:
@@ -70,7 +89,8 @@ def main() -> int:
     if not args.dry_run:
         print(f"\nToplam bulgu: {len(result.findings)}")
         for finding in result.findings:
-            print(f"  - [{finding.severity.value.upper()}] {finding.title}")
+            cve = f" ({finding.cve_id})" if finding.cve_id else ""
+            print(f"  - [{finding.severity.value.upper()}] [{finding.source_tool}] {finding.title}{cve}")
 
         if result.errors:
             print(f"\nHatalar ({len(result.errors)}):")

@@ -1,16 +1,16 @@
 ﻿# ByteWall
 
-**AI-assisted security scan orchestrator, built for personal bug bounty use.**
+**A scope-safe, AI-assisted security scan orchestrator.**
 
-ByteWall coordinates well-established open-source security tools (Nmap, Nuclei, and others), normalizes their output into a single data model, and uses a local LLM (via Ollama) to help prioritize and summarize findings. It's not a scanner engine written from scratch — it's an orchestration and analysis layer on top of proven tools, built for my own authorized testing workflow.
+ByteWall coordinates well-established open-source security tools (Nmap, Nuclei) into a single pipeline, normalizes their output into one common data model, and uses a locally-running LLM (via [Ollama](https://ollama.com)) to help prioritize and summarize findings — entirely offline, with no data sent to any third-party API.
 
-This is a personal project, not a product. It's not meant to be installed and run by others — this repo exists mainly as a public record of the architecture and design decisions behind it.
+It started as a personal tool for authorized bug bounty testing. It's fully open source: read the code, run it, fork it, open a PR if you find a bug or want to add a tool.
 
 ---
 
 ## Why this exists
 
-Most scanners hand you raw output and leave the interpretation to you. ByteWall's goal is to go one step further: normalize findings from multiple tools into a consistent format, then use a local model to help triage what actually matters, in plain language, without sending any data to a third-party API.
+Most scanners hand you raw output and leave the interpretation to you. ByteWall goes one step further: it normalizes findings from multiple tools into a consistent format, then uses a local model to help triage what actually matters — in plain language, without leaking any scan data outside your machine.
 
 ---
 
@@ -18,27 +18,34 @@ Most scanners hand you raw output and leave the interpretation to you. ByteWall'
 
 This project is built around one non-negotiable rule: **a target is never scanned unless it has been explicitly whitelisted.**
 
-- Every scan run is checked against a program-specific scope file (`in_scope` / `out_of_scope` patterns, domains, wildcards, and CIDR ranges).
+- Every scan run is checked against a program-specific scope file (`in_scope` / `out_of_scope` patterns — exact domains, wildcards, and CIDR ranges are all supported).
 - `out_of_scope` always wins, even if a target also matches an `in_scope` pattern.
-- Anything not explicitly listed is rejected by default — this is a whitelist model, not a blacklist.
+- Anything not explicitly listed is rejected by default — this is a **whitelist model**, not a blacklist. If you forget to list something, it gets rejected, not scanned.
 - The scope engine (`core/scope_manager.py`) is fully unit-tested; see `tests/unit/test_scope_manager.py`.
-- No target data, scope files, or scan results are ever committed to this repository (`data/` is gitignored).
 
-This exists to make sure the tool can never accidentally scan something outside an authorized bug bounty program.
+### How scope is selected — manual, on purpose
 
----
+There is no automatic scope discovery. **You** create a YAML file describing exactly what a given program allows, and ByteWall only ever scans against that file. Nothing is inferred, guessed, or auto-expanded.
 
-## What's public vs. what's kept private
+```yaml
+# data/scope/my_program.yaml
+program_name: "example_program"
 
-This repository contains the orchestration architecture, data normalization layer, AI analysis layer, and reporting logic — the parts that are useful to share and don't carry misuse risk.
+in_scope:
+  - "*.example.com"
+  - "api.example.com"
+  - "203.0.113.0/24"
 
-Some active-scanning modules (the parts that would let someone point this at an arbitrary target and get exploit-ready output) are intentionally kept out of this repo. This isn't about hiding poor code — it's a deliberate choice, for a few reasons:
+out_of_scope:
+  - "blog.example.com"   # third-party hosted, explicitly excluded
+  - "internal.example.com"
 
-- Reducing the risk of this tooling being repurposed for unauthorized scanning.
-- Staying consistent with responsible disclosure practices.
-- Keeping some of the tuning I rely on in my own bug bounty work private.
+notes: >
+  Link to the program's official scope page here.
+  When in doubt, don't scan — check the program's rules first.
+```
 
-What's here is enough to understand and evaluate the architecture, even without the private pieces.
+Before any real scan, always run with `--dry-run` first — it shows exactly which targets would be scanned without touching anything, so you can visually confirm the filtering is correct.
 
 ---
 
@@ -48,13 +55,13 @@ What's here is enough to understand and evaluate the architecture, even without 
 targets
    -> ScopeManager.filter_targets()     # whitelist check, default-deny
    -> in-scope targets only
-   -> modules/*Runner.run()             # Nmap, Nuclei, etc. (some private)
+   -> modules/*Runner.run()             # Nmap, Nuclei (subprocess, no shell=True)
    -> parsers/*_parser.py               # raw tool output -> common Finding schema
-   -> ai/analyzer.py                    # local LLM triage + summarization
+   -> ai/analyzer.py                    # local LLM triage + summarization (Ollama)
    -> reports/*_builder.py              # HTML / Markdown report
 ```
 
-Every scanning module implements a shared `BaseRunner` interface (`modules/base_runner.py`), so adding a new tool doesn't require touching the orchestrator. Every parser converts tool-specific output into one common `Finding` model (`parsers/schema.py`), so the AI and reporting layers never need to know which tool a result came from.
+Every scanning module implements a shared `BaseRunner` interface (`modules/base_runner.py`), so adding a new tool doesn't require touching the orchestrator. Every parser converts tool-specific output into one common `Finding` model (`parsers/schema.py`), so the AI and reporting layers never need to know which tool a result came from. All subprocess calls use argument lists (never `shell=True`), which eliminates shell-injection risk regardless of what a target string contains.
 
 ---
 
@@ -65,9 +72,10 @@ Every scanning module implements a shared `BaseRunner` interface (`modules/base_
 | Orchestration | Python 3.11+ |
 | Data validation | Pydantic |
 | Scope config | YAML |
-| AI / LLM | Ollama (local, e.g. Llama 3) — no data leaves the machine |
-| Scanning tools | Nmap, Nuclei (community templates), others planned |
-| Testing | pytest |
+| AI / LLM | Ollama (local, e.g. Llama 3) — nothing leaves the machine |
+| Recon | Nmap |
+| Vulnerability scanning | Nuclei (community templates) |
+| Testing | pytest (mocked subprocess calls, no live network required) |
 
 ---
 
@@ -76,27 +84,81 @@ Every scanning module implements a shared `BaseRunner` interface (`modules/base_
 ```
 bytewall/
 ├── core/                 # orchestrator, config, scope manager
-├── modules/              # per-tool runners (some private)
+├── modules/
+│   ├── base_runner.py    # shared interface every tool runner implements
 │   ├── recon/
+│   │   └── nmap_runner.py
 │   └── webscan/
-├── parsers/              # raw tool output -> common Finding schema
-├── ai/                   # local LLM client + analysis/prioritization
-├── reports/              # HTML/Markdown report generation
-├── data/                 # scope files, scan results, logs — gitignored
+│       └── nuclei_runner.py
+├── parsers/               # raw tool output -> common Finding schema
+├── ai/                    # local LLM client + analysis/prioritization
+├── reports/                # HTML/Markdown report generation
+├── data/
+│   └── scope/               # your scope files live here (gitignored except the example)
 ├── tests/
+│   └── unit/                 # 50+ tests, all run against mocked subprocess calls
 └── docs/
 ```
 
 ---
 
-## Status
+## Setup
 
-Early stage, actively being built out module by module. This is a work-in-progress personal tool, evolving as I use it in real bug bounty engagements.
+```bash
+git clone https://github.com/<your-username>/bytewall.git
+cd bytewall
 
-## Legal
+python -m venv venv
+source venv/bin/activate        # Windows: venv\Scripts\Activate.ps1
+pip install -r requirements.txt
+```
 
-This tool is intended exclusively for use on systems I am explicitly authorized to test, within the scope of programs I'm enrolled in. The scope-checking logic in this repository is a safeguard, not a substitute for reading and following each program's actual rules.
+### External tools (installed separately, not bundled)
+
+| Tool | Install |
+|---|---|
+| Nmap | [nmap.org/download](https://nmap.org/download.html) |
+| Nuclei | [github.com/projectdiscovery/nuclei/releases](https://github.com/projectdiscovery/nuclei/releases), then `nuclei -update-templates` |
+| Ollama | [ollama.com/download](https://ollama.com/download), then `ollama pull llama3` |
+
+### Configure your scope
+
+```bash
+cp data/scope/program.example.yaml data/scope/my_program.yaml
+# edit my_program.yaml with the real in_scope / out_of_scope rules
+# for a program you are actually authorized to test
+```
+
+### Run
+
+```bash
+# always dry-run first — verify exactly what would be scanned
+python main.py --program my_program --target api.example.com --dry-run
+
+# real scan
+python main.py --program my_program --target api.example.com --tools nmap,nuclei
+```
+
+### Tests
+
+```bash
+pytest tests/unit -v
+```
+
+All tests run against mocked subprocess calls — no live network access or installed tools required to run the test suite.
+
+---
+
+## Contributing
+
+Issues and PRs are welcome — bug fixes, new tool runners (following the `BaseRunner` interface), parser improvements, better prompts for the AI layer, whatever. If you're adding a new scanning module, please keep the scope-safety guarantee intact: nothing should ever reach a runner without going through `ScopeManager` first.
+
+---
+
+## Legal / acceptable use
+
+This tool is intended exclusively for use on systems you are explicitly authorized to test — for example, within the scope of a bug bounty program you're enrolled in. Scanning systems without authorization may be illegal in your jurisdiction. The scope-checking logic in this repository is a safeguard against accidental misuse, not a substitute for reading and following each program's actual rules. You are responsible for how you use this tool.
 
 ## License
 
-Proprietary — all rights reserved.
+MIT — see [LICENSE](LICENSE).

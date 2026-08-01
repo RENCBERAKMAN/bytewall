@@ -1,25 +1,63 @@
-﻿# --- Hassas veri: ASLA repoya girmez ---
+﻿# ============================================================
+# ByteWall .gitignore
+#
+# Proje tamamen açık kaynak — TÜM KOD GitHub'a gider.
+# Burada SADECE gerçekten hassas/kişisel veya makineye özel,
+# üretilen (generated) dosyalar dışarıda tutulur. Kod dosyası
+# saklama mantığı YOK, hepsi public.
+# ============================================================
+
+# --- Gerçek scope dosyaların: hangi programı test ettiğini,
+#     hangi domainlerin hedef olduğunu gösterir. Bu bilgi
+#     bounty programının kurallarına göre gizli kalmalı,
+#     kod değil bu yüzden dışarıda tutuluyor. ---
+data/scope/*.yaml
+!data/scope/*.example.yaml
+
+# --- Tarama sonuçları: gerçek hedeflerin gerçek bulgularını
+#     (açık portlar, zafiyetler) içerir — bu, hem senin hem de
+#     taradığın kuruluşun hassas verisi. Asla public'e gitmemeli. ---
 data/scans/
 data/reports/
 data/logs/
-data/scope/*.yaml
-!data/scope/*.example.yaml
+
+# --- Ortam değişkenleri / API anahtarları ---
 .env
-*.log
+*.env.local
 
 # --- Python ---
 __pycache__/
 *.pyc
+*.pyo
 .venv/
 venv/
+env/
 *.egg-info/
 .pytest_cache/
+.mypy_cache/
+.ruff_cache/
 
-# --- Editor / OS ---
+# --- Test/geliştirme sırasında oluşan geçici dosyalar ---
+*.log
+*.tmp
+
+# --- Editör / OS ---
 .vscode/
 .idea/
 .DS_Store
+Thumbs.db
+desktop.ini
 
-# --- Ollama/model dosyalari ---
+# --- Sık yanlışlıkla eklenen, makineye özel dosyalar ---
+*.pdb
+*.suo
+*.user
+
+# --- Ollama/model dosyaları (indirilen modeller repoya gitmemeli,
+#     zaten gigabaytlarca büyük ve herkes kendi indirir) ---
 *.gguf
 models/
+
+# --- Nuclei'nin yerel şablon/config klasörü (kullanıcı bazlı,
+#     'nuclei -update-templates' ile her bilgisayarda ayrı iner) ---
+nuclei-templates/
